@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name: Auto Setup (Cleanup von WP)
- * Description: Löscht Standard-Beiträge/Seiten, erstellt eine statische „Startseite" (Elementor Full Width), setzt Permalinks auf /%postname%/ und aktiviert den Elementor-Container. Mit modernem Setup-Menü.
+ * Plugin Name: Auto Setup V2
+ * Description: Autoclean Up, Alttext Manager, Plugin Installer, Elementor Settings, Auto Updates, Webp Converter, Settings, Admin Page, AJAX Handlers, Plugin Installer, Alttext Manager, Auto Updates, Webp Converter, Settings, Admin Page, AJAX Handlers
  * Version: 2.0.0
  * Author: Louis
  */
@@ -48,6 +48,7 @@ $includes = [
     'includes/asu-duplicate.php',
     'includes/asu-auto-updates.php',
     'includes/asu-webp.php',
+    'includes/asu-settings.php',
 ];
 
 foreach ($includes as $include) {

@@ -10,8 +10,8 @@ if ( ! defined('ABSPATH') ) { exit; }
  */
 add_action('admin_menu', function() {
     add_menu_page(
-        'Auto Setup',
-        'Auto Setup',
+        'Auto Clean Up',
+        'Auto Clean Up',
         'manage_options',
         'auto-setup',
         'asu_render_setup_page',
@@ -34,26 +34,37 @@ function asu_render_setup_page() {
         <?php include ASU_PLUGIN_DIR . 'includes/asu-admin-styles.php'; ?>
 
         <div class="asu-header">
-            <h1>🚀 Auto Setup</h1>
+            <h1>🚀 Auto Clean Up</h1>
             <p>Willkommen! Richte deine WordPress-Installation schnell und einfach ein.</p>
         </div>
 
         <div class="asu-card">
-            <h2>⚡ Auto-Start</h2>
+            <h2>⚡ Auto Clean Up</h2>
             <p>Führt das komplette Setup automatisch durch:</p>
+            
+            <div class="asu-warning-box">
+                <h3>⚠️ WICHTIG: Was wird gelöscht?</h3>
+                <p><strong>Folgende Daten werden unwiderruflich gelöscht:</strong></p>
+                <ul class="asu-warning-list">
+                    <li><strong>Alle Beiträge und Seiten</strong> (publiziert, Entwurf, ausstehend, zukünftig, privat, gelöscht)</li>
+                    <li><strong>Alle Themes</strong> außer Hello Elementor</li>
+                    <li><strong>Plugins:</strong> Hello Dolly und Akismet</li>
+                </ul>
+                <p><strong>Bitte erstelle vorher ein Backup!</strong></p>
+            </div>
+            
             <ul class="asu-feature-list">
                 <li>Löscht alle Standard-Beiträge und -Seiten</li>
                 <li>Erstellt eine statische Startseite (Elementor Full Width - Gesamtbreite)</li>
+                <li>Erstellt Impressum- und Datenschutz-Seiten (Elementor Full Width - Gesamtbreite)</li>
                 <li>Setzt Permalinks auf /%postname%/</li>
                 <li>Aktiviert Elementor Container</li>
                 <li>Bereinigt Themes (nur Hello Elementor behalten)</li>
                 <li>Bereinigt Plugins (Hello Dolly, Akismet entfernen)</li>
-                <li>Setzt Index-Seite auf Index</li>
-                <li>Setzt Danke/Impressum/Datenschutz/Cookie-Seiten auf No-Index</li>
                 <li>Aktiviert automatische Updates für alle Plugins</li>
             </ul>
-            <button class="asu-button" id="asu-auto-start">
-                Auto-Start durchführen
+            <button class="asu-button asu-button-danger" id="asu-auto-start">
+                Auto Clean Up durchführen
                 <span class="asu-spinner" style="display:none;"></span>
             </button>
             <div class="asu-status" id="asu-auto-start-status"></div>

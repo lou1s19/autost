@@ -9,6 +9,11 @@ if ( ! defined('ABSPATH') ) { exit; }
  * Admin-Menü für Elementor-Einstellungen hinzufügen
  */
 add_action('admin_menu', function() {
+    // Prüfe ob Elementor-Einstellungen aktiviert sind
+    if (!get_option(ASU_ENABLE_ELEMENTOR, 1)) {
+        return;
+    }
+    
     add_submenu_page(
         'auto-setup',
         'Elementor Einstellungen',
@@ -51,29 +56,58 @@ function asu_set_container_padding_zero() {
             return new WP_Error('no_kit', 'Kein aktives Elementor Kit gefunden');
         }
         
-        // Container Padding auf 0 setzen (für alle Breakpoints)
-        $settings = [
-            'container_padding' => [
-                'unit' => 'px',
-                'size' => 0,
-                'sizes' => [
-                    'desktop' => 0,
-                    'tablet' => 0,
-                    'mobile' => 0,
-                ]
-            ]
+        $kit_id = $kit->get_id();
+        
+        // Container Padding auf 0 setzen - Elementor Format mit isLinked
+        $container_padding = [
+            'unit' => 'px',
+            'size' => 0,
+            'sizes' => [
+                'desktop' => 0,
+                'tablet' => 0,
+                'mobile' => 0,
+            ],
+            'isLinked' => true  // WICHTIG: Verknüpft die Werte
         ];
         
-        // Kit Settings aktualisieren
+        // Methode 1: Über Kit Settings API
+        $settings = [
+            'container_padding' => $container_padding
+        ];
         $kit->update_settings($settings);
         
-        // Zusätzlich: In Elementor Global Settings speichern
+        // Methode 2: Direkt in Kit Settings Meta
+        $kit_settings = get_post_meta($kit_id, '_elementor_page_settings', true);
+        if (!is_array($kit_settings)) {
+            $kit_settings = [];
+        }
+        $kit_settings['container_padding'] = $container_padding;
+        update_post_meta($kit_id, '_elementor_page_settings', $kit_settings);
+        
+        // Methode 3: In Elementor Settings Option
         $elementor_settings = get_option('elementor_settings', []);
         if (!is_array($elementor_settings)) {
             $elementor_settings = [];
         }
-        $elementor_settings['container_padding'] = 0;
+        $elementor_settings['container_padding'] = $container_padding;
         update_option('elementor_settings', $elementor_settings);
+        
+        // Methode 4: In Kit Data (falls vorhanden)
+        $kit_data = get_post_meta($kit_id, '_elementor_data', true);
+        if ($kit_data) {
+            $kit_data_array = json_decode($kit_data, true);
+            if (is_array($kit_data_array)) {
+                // Container Padding in Settings setzen
+                if (!isset($kit_data_array['settings'])) {
+                    $kit_data_array['settings'] = [];
+                }
+                $kit_data_array['settings']['container_padding'] = $container_padding;
+                update_post_meta($kit_id, '_elementor_data', json_encode($kit_data_array));
+            }
+        }
+        
+        // Flag setzen, dass Container-Padding auf 0 gesetzt wurde
+        update_option('asu_container_padding_zero', true);
         
         // Cache leeren (wenn verfügbar)
         if (isset($elementor_plugin->files_manager)) {
@@ -85,6 +119,227 @@ function asu_set_container_padding_zero() {
         return new WP_Error('error', $e->getMessage());
     }
 }
+
+/**
+ * CSS: Container-Padding automatisch auf 0 setzen
+ */
+add_action('wp_head', function() {
+    if (!get_option('asu_container_padding_zero', false)) {
+        return;
+    }
+    ?>
+    <style>
+    /* Container Padding auf 0 setzen - ALLE Container (auch verschachtelte) */
+    .e-container,
+    .e-con-inner,
+    .e-con,
+    .e-con-full,
+    .e-con-boxed,
+    .e-child,
+    .elementor-element[data-element_type="container"] .e-container,
+    .elementor-element[data-element_type="container"] .e-con-inner,
+    .elementor-element[data-element_type="container"].e-con,
+    .elementor-element[data-element_type="container"].e-con-full,
+    .elementor-element[data-element_type="container"].e-con-boxed,
+    .elementor-element[data-element_type="container"].e-child {
+        padding-top: 0 !important;
+        padding-right: 0 !important;
+        padding-bottom: 0 !important;
+        padding-left: 0 !important;
+    }
+    
+    /* Auch für alle Container-Varianten und verschachtelte Container */
+    .elementor-container .e-container,
+    .elementor-container .e-con-inner,
+    .e-con .e-con-inner,
+    .e-con .e-container,
+    .e-con-full .e-con-inner,
+    .e-con-full .e-container,
+    .e-child .e-con-inner,
+    .e-child .e-container {
+        padding-top: 0 !important;
+        padding-right: 0 !important;
+        padding-bottom: 0 !important;
+        padding-left: 0 !important;
+    }
+    
+    /* Speziell für verschachtelte Container (e-child) */
+    .e-con .e-con,
+    .e-con .e-con-full,
+    .e-con .e-child,
+    .e-con-full .e-con,
+    .e-con-full .e-con-full,
+    .e-con-full .e-child {
+        padding-top: 0 !important;
+        padding-right: 0 !important;
+        padding-bottom: 0 !important;
+        padding-left: 0 !important;
+    }
+    </style>
+    <?php
+}, 999);
+
+/**
+ * JavaScript Hook: Container-Padding automatisch auf 0 setzen für neue Container
+ */
+add_action('elementor/frontend/after_enqueue_scripts', function() {
+    if (!get_option('asu_container_padding_zero', false)) {
+        return;
+    }
+    ?>
+    <script>
+    (function() {
+        if (typeof elementorFrontend === 'undefined') {
+            return;
+        }
+        
+        // Hook für neue Container - setze Padding automatisch auf 0 (auch verschachtelte)
+        elementorFrontend.hooks.addAction('frontend/element_ready/container', function($scope) {
+            // Finde alle Container-Varianten (auch verschachtelte)
+            var $containers = $scope.find('.e-container, .e-con-inner, .e-con, .e-con-full, .e-con-boxed, .e-child');
+            
+            // Auch der Container selbst
+            if ($scope.hasClass('e-con') || $scope.hasClass('e-con-full') || $scope.hasClass('e-con-boxed') || $scope.hasClass('e-child')) {
+                $containers = $containers.add($scope);
+            }
+            
+            if ($containers.length) {
+                // Setze Padding auf 0 via CSS (Fallback)
+                $containers.css({
+                    'padding-top': '0',
+                    'padding-right': '0',
+                    'padding-bottom': '0',
+                    'padding-left': '0'
+                });
+            }
+        });
+    })();
+    </script>
+    <?php
+});
+
+/**
+ * JavaScript für Elementor Editor: Container-Padding automatisch auf 0 setzen
+ */
+add_action('elementor/editor/before_enqueue_scripts', function() {
+    if (!get_option('asu_container_padding_zero', false)) {
+        return;
+    }
+    ?>
+    <script>
+    (function() {
+        // Warte bis Elementor Editor vollständig geladen ist
+        function initContainerPadding() {
+            if (typeof elementor === 'undefined' || !elementor.hooks) {
+                setTimeout(initContainerPadding, 100);
+                return;
+            }
+            
+            // Hook für Container-Defaults - setze Padding auf 0 für neue Container
+            elementor.hooks.addFilter('elementor/container/defaults', function(defaults) {
+                defaults.padding = {
+                    'unit': 'px',
+                    'size': 0,
+                    'sizes': {
+                        'desktop': 0,
+                        'tablet': 0,
+                        'mobile': 0
+                    },
+                    'isLinked': true
+                };
+                return defaults;
+            }, 10);
+            
+            // Hook wenn Container erstellt wird
+            elementor.hooks.addAction('panel/open_editor/widget/container', function(panel, model, view) {
+                if (model && model.get) {
+                    var padding = model.get('settings').get('padding');
+                    if (!padding || padding.size !== 0) {
+                        model.get('settings').set('padding', {
+                            'unit': 'px',
+                            'size': 0,
+                            'sizes': {
+                                'desktop': 0,
+                                'tablet': 0,
+                                'mobile': 0
+                            },
+                            'isLinked': true
+                        });
+                    }
+                }
+            });
+            
+            // Hook wenn Container hinzugefügt wird (auch verschachtelte)
+            elementor.hooks.addAction('elementor/elements/new', function(model) {
+                if (model && model.get) {
+                    var widgetType = model.get('widgetType');
+                    var elementType = model.get('elType');
+                    
+                    // Prüfe ob es ein Container ist (auch verschachtelte)
+                    if (widgetType === 'container' || elementType === 'container') {
+                        var settings = model.get('settings');
+                        if (settings) {
+                            // Setze Padding auf 0
+                            var currentPadding = settings.get('padding');
+                            if (!currentPadding || currentPadding.size !== 0) {
+                                settings.set('padding', {
+                                    'unit': 'px',
+                                    'size': 0,
+                                    'sizes': {
+                                        'desktop': 0,
+                                        'tablet': 0,
+                                        'mobile': 0
+                                    },
+                                    'isLinked': true
+                                });
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Hook wenn Container-Einstellungen geändert werden
+            elementor.hooks.addAction('elementor/element/before_section_end', function(element, section) {
+                if (section && section.name === 'section_layout' && element && element.model) {
+                    var widgetType = element.model.get('widgetType');
+                    var elementType = element.model.get('elType');
+                    
+                    if (widgetType === 'container' || elementType === 'container') {
+                        var settings = element.model.get('settings');
+                        if (settings) {
+                            var padding = settings.get('padding');
+                            // Wenn Padding nicht 0 ist, setze es auf 0
+                            if (padding && padding.size !== 0) {
+                                settings.set('padding', {
+                                    'unit': 'px',
+                                    'size': 0,
+                                    'sizes': {
+                                        'desktop': 0,
+                                        'tablet': 0,
+                                        'mobile': 0
+                                    },
+                                    'isLinked': true
+                                });
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Starte nach Elementor Init
+        if (typeof elementor !== 'undefined' && elementor.hooks) {
+            elementor.hooks.addAction('elementor/init', initContainerPadding);
+        } else {
+            jQuery(window).on('elementor:init', initContainerPadding);
+        }
+        
+        // Auch direkt versuchen (falls bereits geladen)
+        setTimeout(initContainerPadding, 500);
+    })();
+    </script>
+    <?php
+});
 
 /**
  * Standard-Typografie-Einstellungen setzen (Inter-ähnlich)

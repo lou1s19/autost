@@ -62,6 +62,8 @@ add_action('plugins_loaded', 'asu_try_set_container', 999);
 add_action('admin_init', 'asu_try_set_container', 1);
 add_action('init', 'asu_try_set_container', 1);
 
+
+
 /**
  * Admin-Notice nach erfolgreichem Setup
  */

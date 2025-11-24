@@ -11,6 +11,23 @@ jQuery(document).ready(function($) {
         var $status = $('#asu-auto-start-status');
         var $spinner = $btn.find('.asu-spinner');
         
+        // Warnung anzeigen
+        var confirmMessage = '⚠️ WARNUNG: Auto Clean Up wird folgende Daten unwiderruflich löschen:\n\n' +
+            '• Alle Beiträge und Seiten (publiziert, Entwurf, ausstehend, zukünftig, privat, gelöscht)\n' +
+            '• Alle Themes außer Hello Elementor\n' +
+            '• Plugins: Hello Dolly und Akismet\n\n' +
+            'Bitte stelle sicher, dass du ein Backup erstellt hast!\n\n' +
+            'Möchtest du wirklich fortfahren?';
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        // Zweite Bestätigung
+        if (!confirm('Letzte Bestätigung: Möchtest du wirklich ALLE Beiträge, Seiten, Themes und Plugins löschen? Dies kann NICHT rückgängig gemacht werden!')) {
+            return;
+        }
+        
         $btn.prop('disabled', true);
         $spinner.show();
         $status.removeClass('success error info').hide();

@@ -17,6 +17,11 @@ add_filter('page_row_actions', 'asu_add_duplicate_link', 10, 2);
 add_filter('post_row_actions', 'asu_add_duplicate_link', 10, 2);
 
 function asu_add_duplicate_link($actions, $post) {
+    // Prüfe ob Duplizieren-Funktion aktiviert ist
+    if (!get_option(ASU_ENABLE_DUPLICATE, 1)) {
+        return $actions;
+    }
+    
     // Nur für Seiten und Beiträge
     if (!in_array($post->post_type, ['page', 'post'])) {
         return $actions;
@@ -27,14 +32,8 @@ function asu_add_duplicate_link($actions, $post) {
         return $actions;
     }
     
-    $duplicate_url = wp_nonce_url(
-        admin_url('admin.php?action=asu_duplicate_post&post=' . $post->ID),
-        'asu_duplicate_' . $post->ID,
-        'asu_duplicate_nonce'
-    );
-    
-    $actions['asu_duplicate'] = '<a href="' . esc_url($duplicate_url) . '" title="' . esc_attr__('Seite/Beitrag duplizieren', 'auto-setup') . '">' . __('Duplizieren', 'auto-setup') . '</a>';
-    
+    // ENTFERNE den Standard-Link komplett - wird durch JavaScript ersetzt
+    // Wir geben keinen Link zurück, damit das JavaScript ihn hinzufügen kann
     return $actions;
 }
 
@@ -45,7 +44,10 @@ add_filter('bulk_actions-edit-page', 'asu_add_bulk_duplicate');
 add_filter('bulk_actions-edit-post', 'asu_add_bulk_duplicate');
 
 function asu_add_bulk_duplicate($actions) {
-    $actions['asu_duplicate'] = __('Duplizieren', 'auto-setup');
+    // Prüfe ob Duplizieren-Funktion aktiviert ist
+    if (get_option(ASU_ENABLE_DUPLICATE, 1)) {
+        $actions['asu_duplicate'] = __('Duplizieren', 'auto-setup');
+    }
     return $actions;
 }
 
@@ -262,10 +264,8 @@ add_action('wp_ajax_asu_quick_duplicate', function() {
     $new_id = asu_duplicate_post($post_id);
     
     if ($new_id && !is_wp_error($new_id)) {
-        $edit_url = get_edit_post_link($new_id, 'raw');
         wp_send_json_success([
             'message' => 'Seite/Beitrag erfolgreich dupliziert!',
-            'edit_url' => $edit_url,
             'new_id' => $new_id
         ]);
     } else {

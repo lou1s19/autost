@@ -41,8 +41,21 @@
         padding-bottom: 10px;
     }
     .asu-card p {
-        color: #666;
+        color: #333;
         line-height: 1.6;
+    }
+    .asu-card h2 {
+        color: #333;
+    }
+    .asu-card h3 {
+        color: #333;
+        margin-top: 0;
+    }
+    .asu-card ul {
+        color: #333;
+    }
+    .asu-card li {
+        color: #333;
     }
     .asu-button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -67,6 +80,50 @@
     }
     .asu-button.secondary {
         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    .asu-button-danger {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+    }
+    .asu-button-danger:hover {
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4) !important;
+    }
+    .asu-warning-box {
+        background: #fff3cd;
+        border: 2px solid #ffc107;
+        border-left: 5px solid #ff9800;
+        border-radius: 5px;
+        padding: 20px;
+        margin: 20px 0;
+    }
+    .asu-warning-box h3 {
+        color: #856404;
+        margin-top: 0;
+        margin-bottom: 15px;
+        font-size: 18px;
+    }
+    .asu-warning-box p {
+        color: #856404;
+        margin: 10px 0;
+    }
+    .asu-warning-box strong {
+        color: #856404;
+    }
+    .asu-warning-list {
+        list-style: none;
+        padding: 0;
+        margin: 15px 0;
+    }
+    .asu-warning-list li {
+        padding: 8px 0;
+        padding-left: 25px;
+        position: relative;
+        color: #856404;
+    }
+    .asu-warning-list li:before {
+        content: "⚠";
+        position: absolute;
+        left: 0;
+        font-size: 16px;
     }
     .asu-status {
         margin-top: 15px;

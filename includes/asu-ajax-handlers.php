@@ -16,7 +16,18 @@ add_action('wp_ajax_asu_auto_start', function() {
         return;
     }
     
+    // Prüfe ob Auto Clean Up aktiviert ist
+    if (!get_option(ASU_ENABLE_CLEANUP, 1)) {
+        wp_send_json_error(['message' => 'Auto Clean Up ist in den Einstellungen deaktiviert']);
+        return;
+    }
+    
     try {
+        // Flag setzen, um save_post Hooks zu überspringen (verhindert Endlosschleife)
+        if (!defined('ASU_DOING_CLEANUP')) {
+            define('ASU_DOING_CLEANUP', true);
+        }
+        
         // (a) Beiträge/Seiten entfernen
         $items = get_posts([
             'post_type'   => ['post','page'],
@@ -36,9 +47,8 @@ add_action('wp_ajax_asu_auto_start', function() {
         if ($home_id && !is_wp_error($home_id)) {
             update_option('show_on_front', 'page');
             update_option('page_on_front', $home_id);
-            // Elementor Full Width Template setzen
-            update_post_meta($home_id, '_wp_page_template', 'elementor_full_width');
-            // Zusätzlich für Elementor: Container-Einstellungen
+            
+            // Elementor Edit Mode aktivieren
             update_post_meta($home_id, '_elementor_edit_mode', 'builder');
             update_post_meta($home_id, '_elementor_template_type', 'wp-page');
         }
@@ -107,35 +117,31 @@ add_action('wp_ajax_asu_auto_start', function() {
             }
         }
 
-        // (g) Index-Seite erstellen (falls nicht vorhanden) und auf Index setzen
-        $index_page = get_page_by_path('index');
-        if (!$index_page) {
-            $index_id = wp_insert_post([
-                'post_title'  => 'Index',
-                'post_name'   => 'index',
-                'post_status' => 'publish',
-                'post_type'   => 'page',
-            ]);
-            if ($index_id && !is_wp_error($index_id)) {
-                // Index-Seite auf Index setzen (Yoast SEO)
-                update_post_meta($index_id, '_yoast_wpseo_meta-robots-noindex', '0');
-            }
-        } else {
-            // Bestehende Index-Seite auf Index setzen
-            update_post_meta($index_page->ID, '_yoast_wpseo_meta-robots-noindex', '0');
-        }
-
-        // (h) No-Index für bestimmte Seiten setzen
-        $noindex_pages = ['danke', 'impressum', 'datenschutz', 'cookie', 'cookies', 'datenschutzerklaerung', 'impressum-datenschutz'];
-        foreach ($noindex_pages as $page_slug) {
-            $page = get_page_by_path($page_slug);
-            if ($page) {
-                // Yoast SEO
-                update_post_meta($page->ID, '_yoast_wpseo_meta-robots-noindex', '1');
-                // Rank Math (falls vorhanden)
-                update_post_meta($page->ID, 'rank_math_robots', ['noindex']);
-                // Allgemein
-                update_post_meta($page->ID, '_meta_robots_noindex', '1');
+        // (g) Impressum und Datenschutz-Seiten erstellen (falls nicht vorhanden)
+        $required_pages = [
+            'impressum' => 'Impressum',
+            'datenschutz' => 'Datenschutz'
+        ];
+        
+        foreach ($required_pages as $slug => $title) {
+            $existing_page = get_page_by_path($slug);
+            if (!$existing_page) {
+                $page_id = wp_insert_post([
+                    'post_title'  => $title,
+                    'post_name'   => $slug,
+                    'post_status' => 'publish',
+                    'post_type'   => 'page',
+                ]);
+                
+                if ($page_id && !is_wp_error($page_id)) {
+                    // Elementor Edit Mode aktivieren
+                    update_post_meta($page_id, '_elementor_edit_mode', 'builder');
+                    update_post_meta($page_id, '_elementor_template_type', 'wp-page');
+                }
+            } else {
+                // Elementor Edit Mode aktivieren
+                update_post_meta($existing_page->ID, '_elementor_edit_mode', 'builder');
+                update_post_meta($existing_page->ID, '_elementor_template_type', 'wp-page');
             }
         }
 
@@ -148,6 +154,11 @@ add_action('wp_ajax_asu_auto_start', function() {
 
         // Container aktivieren (wenn Elementor verfügbar)
         asu_activate_container();
+        
+        // Container-Padding automatisch auf 0 setzen
+        if (did_action('elementor/loaded')) {
+            asu_set_container_padding_zero();
+        }
 
         wp_send_json_success([
             'message' => '✅ Auto-Start erfolgreich abgeschlossen! Die Seite wird in 2 Sekunden neu geladen...',

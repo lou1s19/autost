@@ -185,22 +185,6 @@ $method = isset($support['imagick']) && $support['imagick'] ? 'Imagick' : (isset
             <h2>⚙️ Einstellungen</h2>
             
             <div class="asu-form-group">
-                <label for="asu_webp_quality">
-                    Qualität: <span class="range-value" id="quality-value">85</span>%
-                </label>
-                <input type="range" 
-                       id="asu_webp_quality" 
-                       name="quality" 
-                       min="1" 
-                       max="100" 
-                       value="85"
-                       oninput="document.getElementById('quality-value').textContent = this.value">
-                <p class="description">
-                    Höhere Qualität = größere Dateien. Empfohlen: 80-90 für beste Balance zwischen Qualität und Dateigröße.
-                </p>
-            </div>
-
-            <div class="asu-form-group">
                 <label>
                     <input type="checkbox" id="asu_skip_existing" checked>
                     Bereits konvertierte Bilder überspringen
@@ -209,6 +193,10 @@ $method = isset($support['imagick']) && $support['imagick'] ? 'Imagick' : (isset
                     Wenn aktiviert, werden Bilder die bereits eine WebP-Version haben übersprungen.
                 </p>
             </div>
+            
+            <p class="description" style="color: #666; font-style: italic;">
+                <strong>Hinweis:</strong> Die Konvertierung verwendet eine optimale Qualität (85%) für beste Balance zwischen Dateigröße und Bildqualität.
+            </p>
         </div>
 
         <div class="asu-webp-card">
@@ -226,6 +214,14 @@ $method = isset($support['imagick']) && $support['imagick'] ? 'Imagick' : (isset
                 <span class="asu-spinner" style="display:none;"></span>
             </button>
             
+            <!-- Progress Bar -->
+            <div id="asu-webp-progress" style="display: none; margin-top: 20px;">
+                <div style="background: #f0f0f0; border-radius: 10px; height: 30px; position: relative; overflow: hidden;">
+                    <div id="asu-webp-progress-bar" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 100%; width: 0%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;"></div>
+                </div>
+                <p id="asu-webp-progress-text" style="text-align: center; margin-top: 10px; color: #666; font-size: 14px;"></p>
+            </div>
+            
             <div class="asu-status" id="asu-webp-status"></div>
         </div>
     <?php endif; ?>
@@ -237,7 +233,9 @@ jQuery(document).ready(function($) {
         var $btn = $(this);
         var $status = $('#asu-webp-status');
         var $spinner = $btn.find('.asu-spinner');
-        var quality = $('#asu_webp_quality').val();
+        var $progress = $('#asu-webp-progress');
+        var $progressBar = $('#asu-webp-progress-bar');
+        var $progressText = $('#asu-webp-progress-text');
         var skipExisting = $('#asu_skip_existing').is(':checked');
         
         if (!confirm('Möchtest du wirklich ALLE Bilder zu WebP konvertieren? Dies kann einige Zeit dauern.')) {
@@ -247,36 +245,122 @@ jQuery(document).ready(function($) {
         $btn.prop('disabled', true);
         $spinner.show();
         $status.removeClass('success error info').hide();
+        $progress.show();
+        $progressBar.css('width', '0%').text('Initialisiere...');
+        $progressText.text('Lade Bildliste...');
         
+        var totalImages = 0;
+        var totalConverted = 0;
+        var totalSkipped = 0;
+        var totalErrors = 0;
+        var currentOffset = 0;
+        var allErrorMessages = [];
+        
+        // Zuerst Gesamtanzahl holen
         $.ajax({
             url: ajaxurl,
             type: 'POST',
             data: {
-                action: 'asu_convert_all_webp',
-                quality: quality,
-                skip_existing: skipExisting ? 'true' : 'false',
+                action: 'asu_webp_count',
                 nonce: '<?php echo wp_create_nonce('asu_convert_webp'); ?>'
             },
             success: function(response) {
-                $spinner.hide();
                 if (response.success) {
-                    var message = response.data.message;
-                    if (response.data.error_messages && response.data.error_messages.length > 0) {
-                        message += '<br><br><strong>Fehlerdetails:</strong><br>';
-                        message += response.data.error_messages.join('<br>');
-                    }
-                    $status.removeClass('error info').addClass('success').html(message).show();
+                    totalImages = response.data.total;
+                    $progressText.text('0 von ' + totalImages + ' Bildern verarbeitet');
+                    
+                    // Jetzt mit der Verarbeitung beginnen
+                    processWebPChunk();
                 } else {
-                    $status.removeClass('success info').addClass('error').html(response.data.message || 'Fehler').show();
+                    $spinner.hide();
+                    $progress.hide();
+                    $status.removeClass('success').addClass('error').html('Fehler beim Laden der Bildliste.').show();
+                    $btn.prop('disabled', false);
                 }
-                $btn.prop('disabled', false);
             },
             error: function() {
                 $spinner.hide();
-                $status.removeClass('success info').addClass('error').html('Ein Fehler ist aufgetreten.').show();
+                $progress.hide();
+                $status.removeClass('success').addClass('error').html('Fehler beim Laden der Bildliste.').show();
                 $btn.prop('disabled', false);
             }
         });
+        
+        function processWebPChunk() {
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'asu_convert_all_webp',
+                    offset: currentOffset,
+                    skip_existing: skipExisting ? 'true' : 'false',
+                    nonce: '<?php echo wp_create_nonce('asu_convert_webp'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        totalConverted += response.data.converted || 0;
+                        totalSkipped += response.data.skipped || 0;
+                        totalErrors += response.data.errors || 0;
+                        
+                        if (response.data.error_messages && response.data.error_messages.length > 0) {
+                            allErrorMessages = allErrorMessages.concat(response.data.error_messages);
+                        }
+                        
+                        currentOffset = response.data.next_offset || currentOffset;
+                        
+                        // Progress aktualisieren
+                        var processedCount = currentOffset || (totalConverted + totalSkipped + totalErrors);
+                        var percentage = totalImages > 0 ? Math.min(100, Math.round((processedCount / totalImages) * 100)) : 0;
+                        $progressBar.css('width', percentage + '%').text(percentage + '%');
+                        $progressText.text(processedCount + ' von ' + totalImages + ' Bildern verarbeitet | ✅ ' + totalConverted + ' | ⚠️ ' + totalSkipped + ' | ❌ ' + totalErrors);
+                        
+                        // Nächsten Chunk verarbeiten
+                        if (response.data.has_more && response.data.next_offset !== null) {
+                            setTimeout(function() {
+                                processWebPChunk();
+                            }, 200); // Kurze Pause zwischen Chunks
+                        } else {
+                            // Fertig!
+                            $spinner.hide();
+                            $progressBar.css('width', '100%').text('100%');
+                            
+                            var message = "✅ Fertig! " + totalConverted + " Bilder konvertiert";
+                            if (totalSkipped > 0) {
+                                message += ", " + totalSkipped + " übersprungen";
+                            }
+                            if (totalErrors > 0) {
+                                message += ", " + totalErrors + " Fehler";
+                            }
+                            
+                            if (allErrorMessages.length > 0) {
+                                message += '<br><br><strong>Fehlerdetails (erste ' + Math.min(10, allErrorMessages.length) + '):</strong><br>';
+                                message += allErrorMessages.slice(0, 10).join('<br>');
+                            }
+                            
+                            $status.removeClass('error').addClass('success').html(message).show();
+                            $progressText.text(message.replace(/<[^>]*>/g, ''));
+                            $btn.prop('disabled', false);
+                            
+                            // Progress nach 5 Sekunden ausblenden
+                            setTimeout(function() {
+                                $progress.fadeOut();
+                            }, 5000);
+                        }
+                    } else {
+                        $spinner.hide();
+                        $progress.hide();
+                        $status.removeClass('success').addClass('error').html(response.data.message || 'Fehler bei der Verarbeitung').show();
+                        $btn.prop('disabled', false);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $spinner.hide();
+                    $progress.hide();
+                    $status.removeClass('success').addClass('error').html('Ein Fehler ist aufgetreten: ' + error).show();
+                    $btn.prop('disabled', false);
+                }
+            });
+        }
     });
 });
 </script>
